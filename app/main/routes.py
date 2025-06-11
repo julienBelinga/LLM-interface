@@ -3,7 +3,6 @@ from app.main import bp
 from app.utils.ollama import OllamaClient
 from app.models import Conversation, Message
 from app import db
-import markdown
 
 @bp.route('/', methods=['GET'])
 def index():
@@ -52,10 +51,8 @@ def chat():
     db.session.add(assistant_message)
     db.session.commit()
     
-    # Formater la réponse en HTML via Markdown
-    formatted_response = markdown.markdown(response)
-    
+    # Renvoyer la réponse brute (sans formatage Markdown)
     return jsonify({
-        'response': formatted_response,
+        'response': response,
         'conversation_id': conversation.id
     }) 

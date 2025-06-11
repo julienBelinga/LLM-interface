@@ -92,7 +92,9 @@ class ChatInterface {
 
     // Formater le contenu avec gestion spéciale des blocs de code
     if (!isUser) {
-      content = this.formatCodeBlocks(content);
+      content = this.formatMarkdownAndCode(content);
+    } else {
+      content = this.escapeHtml(content);
     }
     contentDiv.innerHTML = content;
 
@@ -103,54 +105,152 @@ class ChatInterface {
     // Scroll to bottom
     messageDiv.scrollIntoView({ behavior: "smooth" });
 
-    // Appliquer la coloration syntaxique
+    // Appliquer la coloration syntaxique après insertion dans le DOM
     if (!isUser) {
-      Prism.highlightAllUnder(messageDiv);
+      // Attendre que l'élément soit dans le DOM puis appliquer Prism
+      setTimeout(() => {
+        Prism.highlightAllUnder(messageDiv);
+      }, 50);
     }
   }
 
-  formatCodeBlocks(content) {
-    // D'abord, traiter les blocs avec des noms de fichiers explicites
+  formatMarkdownAndCode(content) {
+    // D'abord traiter les blocs de code pour éviter qu'ils soient affectés par le formatage Markdown
+    content = this.formatCodeBlocks(content);
+
+    // Traiter le code inline (backticks simples)
+    content = this.formatInlineCode(content);
+
+    // Ensuite traiter le Markdown simple (gras, italique, liens)
+    content = this.formatSimpleMarkdown(content);
+
+    return content;
+  }
+
+  formatInlineCode(content) {
+    // Traiter le code inline avec des backticks simples `code`
+    // Éviter de traiter les blocs qui sont déjà dans des <pre>
+    return content.replace(
+      /(?<!<pre[^>]*>[\s\S]*?)`([^`\n]+)`(?![\s\S]*?<\/pre>)/g,
+      '<code class="inline-code">$1</code>'
+    );
+  }
+
+  formatSimpleMarkdown(content) {
+    // Titres **texte** - maintenant on accepte aussi les noms de fichiers
     content = content.replace(
-      /\*\*([\w.-]+)\*\*(.*?)```([\s\S]*?)```/g,
-      (match, filename, description, code) => {
+      /\*\*([^*\n]+)\*\*/g,
+      '<h3 class="text-lg font-bold text-blue-300 mt-4 mb-2">$1</h3>'
+    );
+
+    // Italique *texte*
+    content = content.replace(/\*((?![\*\n<])(?!\/?).*?)\*/g, "<em>$1</em>");
+
+    // Liens [texte](url)
+    content = content.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      '<a href="$2" target="_blank" class="text-blue-400 hover:text-blue-300">$1</a>'
+    );
+
+    // Sauts de ligne
+    content = content.replace(/\n\n/g, "</p><p>");
+    content = content.replace(/\n/g, "<br>");
+
+    // Entourer dans des paragraphes si nécessaire
+    if (!content.includes("<pre>") && !content.includes("<p>")) {
+      content = "<p>" + content + "</p>";
+    }
+
+    return content;
+  }
+
+  formatCodeBlocks(content) {
+    console.log("Formatage des blocs de code - input:", content);
+
+    // Traiter les blocs avec des noms de fichiers explicites
+    content = content.replace(
+      /\*\*([\w.-]+)\*\*(.*?)```([\w]*)\n?([\s\S]*?)```/g,
+      (match, filename, description, lang, code) => {
+        console.log("Bloc avec nom de fichier trouvé:", {
+          filename,
+          lang,
+          code,
+        });
         const language =
+          lang ||
           this.detectLanguageFromFilename(filename) ||
-          this.detectLanguage(code.trim());
-        return `**${filename}**${description}<pre><code class="language-${language}">${this.escapeHtml(
-          code.trim()
+          this.detectLanguage(code);
+        // Préserver l'indentation et les retours à la ligne
+        const cleanCode = this.preserveCodeFormatting(code);
+        console.log("Code nettoyé:", cleanCode);
+        return `<strong>${filename}</strong>${description}<pre><code class="language-${language}">${this.escapeHtml(
+          cleanCode
         )}</code></pre>`;
       }
     );
 
-    // Ensuite, traiter les blocs normaux avec ```
+    // Traiter les blocs normaux avec langage spécifié
     content = content.replace(
-      /```(\w*)\n([\s\S]*?)```/g,
+      /```(\w+)\n([\s\S]*?)```/g,
       (match, declaredLang, code) => {
-        let language = declaredLang.trim();
-        const cleanCode = code.trim();
-
-        // Si pas de langage déclaré, détecter automatiquement
-        if (!language) {
-          language = this.detectLanguage(cleanCode);
-        }
-
+        console.log("Bloc avec langage trouvé:", { declaredLang, code });
+        const language = declaredLang.trim() || this.detectLanguage(code);
+        const cleanCode = this.preserveCodeFormatting(code);
+        console.log("Code nettoyé:", cleanCode);
         return `<pre><code class="language-${language}">${this.escapeHtml(
           cleanCode
         )}</code></pre>`;
       }
     );
 
-    // Traiter les blocs sans langage spécifié mais avec du contenu
-    content = content.replace(/```([\s\S]*?)```/g, (match, codeBlock) => {
-      const cleanCode = codeBlock.trim();
-      const language = this.detectLanguage(cleanCode);
+    // Traiter les blocs sans langage spécifié
+    content = content.replace(/```\n?([\s\S]*?)```/g, (match, code) => {
+      console.log("Bloc sans langage trouvé:", code);
+      const language = this.detectLanguage(code);
+      const cleanCode = this.preserveCodeFormatting(code);
+      console.log("Code nettoyé:", cleanCode);
       return `<pre><code class="language-${language}">${this.escapeHtml(
         cleanCode
       )}</code></pre>`;
     });
 
+    console.log("Formatage des blocs de code - output:", content);
     return content;
+  }
+
+  preserveCodeFormatting(code) {
+    // Préserver l'indentation et les retours à la ligne
+    // Enlever seulement les espaces/tabs au tout début et à la toute fin
+    let lines = code.split("\n");
+
+    // Enlever les lignes vides au début et à la fin
+    while (lines.length > 0 && lines[0].trim() === "") {
+      lines.shift();
+    }
+    while (lines.length > 0 && lines[lines.length - 1].trim() === "") {
+      lines.pop();
+    }
+
+    if (lines.length === 0) return "";
+
+    // Trouver l'indentation minimale (en ignorant les lignes vides)
+    let minIndent = Infinity;
+    for (let line of lines) {
+      if (line.trim() !== "") {
+        let indent = line.match(/^\s*/)[0].length;
+        minIndent = Math.min(minIndent, indent);
+      }
+    }
+
+    // Supprimer l'indentation commune de toutes les lignes
+    if (minIndent > 0 && minIndent !== Infinity) {
+      lines = lines.map((line) => {
+        if (line.trim() === "") return line;
+        return line.substring(minIndent);
+      });
+    }
+
+    return lines.join("\n");
   }
 
   detectLanguageFromFilename(filename) {
@@ -177,13 +277,8 @@ class ChatInterface {
     const patterns = {
       html: /^<!DOCTYPE|^<html|^<head|^<body/i,
       css: /^[.#]?[\w-]+\s*\{|^body\s*\{|^@media|color\s*:|font-size\s*:|text-align\s*:/i,
-      jsx: /^import React|JSX\.Element|<\w+.*>/m,
       javascript: /^(const|let|var|function|import|export)\s|^\s*\/\//m,
-      typescript: /^(interface|type|enum)\s|:\s*(string|number|boolean)/m,
       python: /^(import|from|def|class)\s|^\s*@/m,
-      json: /^[\[{]/,
-      bash: /^(\$|#)\s/,
-      dart: /^(import|class|void|final|const|var|Function)\s|^\s*@[A-Z]/m,
     };
 
     for (const [lang, pattern] of Object.entries(patterns)) {
@@ -195,9 +290,13 @@ class ChatInterface {
   }
 
   escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    // Préserver les retours à la ligne et l'indentation en remplaçant les caractères HTML dangereux
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 }
 

@@ -23,34 +23,63 @@ main {
   padding-bottom: 10px;
 }
 
-/* Styles pour les blocs de code */
+/* Styles pour les titres générés par **texte** */
+h3.text-lg {
+  font-size: 1.125rem;
+  font-weight: bold;
+  color: #93c5fd;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid #3b82f6;
+  padding-left: 0.75rem;
+}
+
+/* Styles pour les blocs de code - VERSION AMÉLIORÉE */
 pre {
   background: #1e1e1e;
   border-radius: 6px;
   padding: 1em;
   margin: 1em 0;
   overflow-x: auto;
+  white-space: pre;
+  line-height: 1.4;
+  border: 1px solid #333;
 }
 
 pre code {
-  font-family: "Fira Code", "Consolas", monospace;
+  font-family: "Fira Code", "Consolas", "Monaco", "Courier New", monospace;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.4;
+  white-space: pre;
+  display: block;
+  color: #f8f8f2;
+}
+
+/* Style pour le code inline (backticks simples) */
+code:not(pre code) {
+  background: #2d2d2d;
+  color: #e6db74;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+/* Style spécifique pour le code inline formaté par notre script */
+code.inline-code {
+  background: #2d2d2d;
+  color: #e6db74;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: "Fira Code", "Consolas", "Monaco", "Courier New", monospace;
+  font-size: 0.9em;
+  white-space: nowrap;
+  border: 1px solid #444;
 }
 
 .message-content {
   overflow-x: auto;
-}
-
-/* Style pour la zone de saisie fixe */
-.input-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: #1a1a1a;
-  padding: 0.5rem;
-  border-top: 1px solid #333;
 }
 
 /* Style pour la barre de défilement dans les blocs de code */
@@ -70,4 +99,15 @@ pre::-webkit-scrollbar-thumb {
 
 pre::-webkit-scrollbar-thumb:hover {
   background: #888;
+}
+
+/* Style pour la zone de saisie fixe */
+.input-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1a1a1a;
+  padding: 0.5rem;
+  border-top: 1px solid #333;
 }
