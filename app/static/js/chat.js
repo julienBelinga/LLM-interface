@@ -110,34 +110,77 @@ class ChatInterface {
   }
 
   formatCodeBlocks(content) {
-    // Remplacer les blocs de code avec la syntaxe ```
-    return content.replace(/```([\s\S]*?)```/g, (match, codeBlock) => {
-      // Extraire la première ligne pour le langage
-      const lines = codeBlock.trim().split("\n");
-      let language = lines[0].trim();
-      let code = lines.slice(1).join("\n").trim();
-
-      // Si la première ligne n'est pas un langage, c'est du code
-      if (language.includes(" ") || !language) {
-        code = codeBlock.trim();
-        language = this.detectLanguage(code);
+    // D'abord, traiter les blocs avec des noms de fichiers explicites
+    content = content.replace(
+      /\*\*([\w.-]+)\*\*(.*?)```([\s\S]*?)```/g,
+      (match, filename, description, code) => {
+        const language =
+          this.detectLanguageFromFilename(filename) ||
+          this.detectLanguage(code.trim());
+        return `**${filename}**${description}<pre><code class="language-${language}">${this.escapeHtml(
+          code.trim()
+        )}</code></pre>`;
       }
+    );
 
-      return `<pre><code class="language-${
-        language || "plaintext"
-      }">${this.escapeHtml(code)}</code></pre>`;
+    // Ensuite, traiter les blocs normaux avec ```
+    content = content.replace(
+      /```(\w*)\n([\s\S]*?)```/g,
+      (match, declaredLang, code) => {
+        let language = declaredLang.trim();
+        const cleanCode = code.trim();
+
+        // Si pas de langage déclaré, détecter automatiquement
+        if (!language) {
+          language = this.detectLanguage(cleanCode);
+        }
+
+        return `<pre><code class="language-${language}">${this.escapeHtml(
+          cleanCode
+        )}</code></pre>`;
+      }
+    );
+
+    // Traiter les blocs sans langage spécifié mais avec du contenu
+    content = content.replace(/```([\s\S]*?)```/g, (match, codeBlock) => {
+      const cleanCode = codeBlock.trim();
+      const language = this.detectLanguage(cleanCode);
+      return `<pre><code class="language-${language}">${this.escapeHtml(
+        cleanCode
+      )}</code></pre>`;
     });
+
+    return content;
+  }
+
+  detectLanguageFromFilename(filename) {
+    const extension = filename.split(".").pop().toLowerCase();
+    const extensions = {
+      html: "html",
+      htm: "html",
+      css: "css",
+      js: "javascript",
+      jsx: "jsx",
+      ts: "typescript",
+      tsx: "typescript",
+      py: "python",
+      dart: "dart",
+      json: "json",
+      sh: "bash",
+      bash: "bash",
+    };
+    return extensions[extension];
   }
 
   detectLanguage(code) {
     // Détection simple du langage basée sur des motifs
     const patterns = {
-      python: /^(import|from|def|class)\s|^\s*@/m,
+      html: /^<!DOCTYPE|^<html|^<head|^<body/i,
+      css: /^[.#]?[\w-]+\s*\{|^body\s*\{|^@media|color\s*:|font-size\s*:|text-align\s*:/i,
+      jsx: /^import React|JSX\.Element|<\w+.*>/m,
       javascript: /^(const|let|var|function|import|export)\s|^\s*\/\//m,
-      jsx: /^(import React|<\w+>|<\/\w+>)/m,
       typescript: /^(interface|type|enum)\s|:\s*(string|number|boolean)/m,
-      html: /^<!DOCTYPE|^<html|^<div/i,
-      css: /^(\.|#|\w+)\s*{/,
+      python: /^(import|from|def|class)\s|^\s*@/m,
       json: /^[\[{]/,
       bash: /^(\$|#)\s/,
       dart: /^(import|class|void|final|const|var|Function)\s|^\s*@[A-Z]/m,
