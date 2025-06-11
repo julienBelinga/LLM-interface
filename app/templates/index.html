@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interface LLM - Ollama</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism-tomorrow.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      /* Styles pour le loader */
+      .loader {
+        display: none;
+        padding: 1rem;
+        margin: 1rem 0;
+        border-radius: 0.5rem;
+        background: rgba(59, 130, 246, 0.1);
+        color: #60a5fa;
+        animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* Styles pour les blocs de code */
+      pre[class*="language-"] {
+        background: #1e1e1e !important;
+        border-radius: 8px;
+        margin: 1em 0;
+      }
+      code[class*="language-"] {
+        font-family: "Fira Code", monospace;
+        font-size: 0.9em;
+        line-height: 1.5;
+      }
+      .message-content {
+        overflow-x: auto;
+      }
+      .message-content pre {
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+      <header class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">💬 Assistant IA Local</h1>
+        <div class="flex space-x-4 mb-4">
+          <select
+            id="modelSelect"
+            class="bg-gray-800 text-gray-100 px-4 py-2 rounded"
+          >
+            <option value="llama3">Llama 3</option>
+          </select>
+          <button
+            id="newChat"
+            class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+          >
+            Nouvelle conversation
+          </button>
+        </div>
+      </header>
+
+      <main class="space-y-8">
+        <div id="chatHistory" class="space-y-4 mb-8 min-h-[400px]"></div>
+
+        <div id="loader" class="loader">
+          <div class="flex items-center space-x-2">
+            <svg
+              class="animate-spin h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <span id="modelName">Le modèle réfléchit...</span>
+          </div>
+        </div>
+
+        <div class="fixed bottom-0 left-0 right-0 bg-gray-900 p-4">
+          <div class="container mx-auto max-w-4xl">
+            <form id="chatForm" class="flex space-x-4">
+              <textarea
+                id="prompt"
+                class="flex-grow bg-gray-800 text-gray-100 p-4 rounded-lg resize-none"
+                rows="3"
+                placeholder="Posez votre question ici..."
+              ></textarea>
+              <button
+                type="submit"
+                class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded-lg self-end"
+              >
+                Envoyer
+              </button>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
+    <script>
+      let currentConversationId = null;
+      const loader = document.getElementById("loader");
+      const modelNameSpan = document.getElementById("modelName");
+      const promptTextarea = document.getElementById("prompt");
+
+      // Gestion de la touche Entrée
+      promptTextarea.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          document
+            .getElementById("chatForm")
+            .dispatchEvent(new Event("submit"));
+        }
+      });
+
+      document.getElementById("newChat").addEventListener("click", () => {
+        currentConversationId = null;
+        document.getElementById("chatHistory").innerHTML = "";
+        promptTextarea.value = "";
+      });
+
+      document
+        .getElementById("chatForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const prompt = promptTextarea.value.trim();
+          if (!prompt) return;
+
+          // Afficher le message de l'utilisateur
+          appendMessage(prompt, true);
+          promptTextarea.value = "";
+
+          // Afficher le loader
+          const selectedModel = document.getElementById("modelSelect").value;
+          modelNameSpan.textContent = `${selectedModel} réfléchit...`;
+          loader.style.display = "block";
+
+          try {
+            const response = await fetch("/chat", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                prompt,
+                model: selectedModel,
+                conversation_id: currentConversationId,
+              }),
+            });
+
+            const data = await response.json();
+            if (response.ok) {
+              currentConversationId = data.conversation_id;
+              appendMessage(data.response, false);
+            } else {
+              throw new Error(data.error || "Une erreur est survenue");
+            }
+          } catch (error) {
+            appendMessage(`Erreur: ${error.message}`, false, true);
+          } finally {
+            // Cacher le loader
+            loader.style.display = "none";
+          }
+        });
+
+      function appendMessage(content, isUser, isError = false) {
+        const chatHistory = document.getElementById("chatHistory");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `p-4 rounded-lg ${
+          isUser ? "bg-gray-800" : isError ? "bg-red-900" : "bg-gray-700"
+        }`;
+
+        const header = document.createElement("div");
+        header.className = "font-bold mb-2";
+        header.textContent = isUser ? "👤 Vous" : "🤖 Assistant";
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "message-content";
+
+        // Formater le contenu avec gestion spéciale des blocs de code
+        if (!isUser) {
+          content = formatCodeBlocks(content);
+        }
+        contentDiv.innerHTML = content;
+
+        messageDiv.appendChild(header);
+        messageDiv.appendChild(contentDiv);
+        chatHistory.appendChild(messageDiv);
+
+        // Scroll to bottom
+        messageDiv.scrollIntoView({ behavior: "smooth" });
+
+        // Appliquer la coloration syntaxique
+        if (!isUser) {
+          Prism.highlightAllUnder(messageDiv);
+        }
+      }
+
+      function formatCodeBlocks(content) {
+        // Remplacer les blocs de code avec la syntaxe ```
+        return content.replace(
+          /```(\w*)\n([\s\S]*?)```/g,
+          (match, language, code) => {
+            const lang = language || "plaintext";
+            return `<pre><code class="language-${lang}">${escapeHtml(
+              code.trim()
+            )}</code></pre>`;
+          }
+        );
+      }
+
+      function escapeHtml(text) {
+        const div = document.createElement("div");
+        div.textContent = text;
+        return div.innerHTML;
+      }
+    </script>
+  </body>
+</html>
