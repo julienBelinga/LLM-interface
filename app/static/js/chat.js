@@ -140,6 +140,7 @@ class ChatInterface {
       css: /^(\.|#|\w+)\s*{/,
       json: /^[\[{]/,
       bash: /^(\$|#)\s/,
+      dart: /^(import|class|void|final|const|var|Function)\s|^\s*@[A-Z]/m,
     };
 
     for (const [lang, pattern] of Object.entries(patterns)) {

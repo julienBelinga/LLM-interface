@@ -38,6 +38,17 @@ pre code {
   overflow-x: auto;
 }
 
+/* Style pour la zone de saisie fixe */
+.input-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1a1a1a;
+  padding: 0.5rem;
+  border-top: 1px solid #333;
+}
+
 /* Style pour la barre de défilement dans les blocs de code */
 pre::-webkit-scrollbar {
   height: 8px;
